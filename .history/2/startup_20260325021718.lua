@@ -382,7 +382,7 @@ function attitude_calc_task()
     attitude.imu_accel.y = attitude.imu_acc_vec[2]    --up>0 and down<0
     attitude.imu_accel.z = attitude.imu_acc_vec[3]   --forward>0  and backward<0
     --print(attitude.imu_acc_vec[3])
-    print(rad_to_deg(attitude.cannon_ang_imu.yaw))
+    print(rad_to_deg(attitude.cannon_ang_imu.pitch))
 end
 
 function pid_calc(target,current,pid_param)
