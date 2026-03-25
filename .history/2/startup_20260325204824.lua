@@ -441,7 +441,7 @@ end
 
 function gimbal_control_task()
     target.ang.yaw = math.rad(90)
-    target.ang.pitch = math.rad(0)
+    target.ang.pitch = math.rad(35)
     pitch_control()
     yaw_control()
     --print(attitude.cannon_ang_imu.yaw)

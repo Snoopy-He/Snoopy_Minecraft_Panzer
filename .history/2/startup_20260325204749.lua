@@ -190,7 +190,7 @@ local gimbal = {
             output_max = 5
         },
         spd_pid = {
-            kp = 1800.0,
+            kp = 2000.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -441,7 +441,7 @@ end
 
 function gimbal_control_task()
     target.ang.yaw = math.rad(90)
-    target.ang.pitch = math.rad(0)
+    target.ang.pitch = math.rad(35)
     pitch_control()
     yaw_control()
     --print(attitude.cannon_ang_imu.yaw)

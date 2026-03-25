@@ -154,22 +154,20 @@ local gimbal = {
         tar_spd = 0,
         output_tor = 0,
         pos_pid = {
-            kp = 2.5,
+            kp = 0.0,
             ki = 0.0,
-            kd = 0.0,
+            kd = 0.1,
             integral = 0,
             last_error = 0,
             errall_max = 10000,
-            output_max = 5
         },
         spd_pid = {
-            kp = 600000.0,
-            ki = 50.0,
+            kp = 800000.0,
+            ki = 1000.0,
             kd = 0.0,
             integral = 0,
             last_error = 0,
             errall_max = 100000000,
-            output_max = 10000000
         },
     },
     pitch_motor = {
@@ -187,16 +185,14 @@ local gimbal = {
             integral = 0,
             last_error = 0,
             errall_max = 10000,
-            output_max = 5
         },
         spd_pid = {
-            kp = 1800.0,
+            kp = 2000.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
             last_error = 0,
             errall_max = 10000,
-            output_max = 10000000
         },
     },
     m = 1,  
@@ -433,15 +429,15 @@ function yaw_control()
     elseif target.ang.yaw-attitude.cannon_ang_imu.yaw < -pi then
         attitude.cannon_ang_imu.yaw = attitude.cannon_ang_imu.yaw - 2*pi
     end
-    --attitude.chassis_imu_yaw_spd = 0
+    attitude.chassis_imu_yaw_spd = 0
     local pid_output = pid_calc(pid_calc(target.ang.yaw, attitude.cannon_ang_imu.yaw, gimbal.yaw_motor.pos_pid),
-    -yaw.getAngularVelocity()*1.1-attitude.chassis_imu_yaw_spd*0.9, gimbal.yaw_motor.spd_pid)
+    -yaw.getAngularVelocity()-attitude.chassis_imu_yaw_spd, gimbal.yaw_motor.spd_pid)
     yaw.setOutputTorque(pid_output)
 end
 
 function gimbal_control_task()
-    target.ang.yaw = math.rad(90)
-    target.ang.pitch = math.rad(0)
+    target.ang.yaw = math.rad(0)
+    target.ang.pitch = math.rad(35)
     pitch_control()
     yaw_control()
     --print(attitude.cannon_ang_imu.yaw)
@@ -454,8 +450,6 @@ function message_receive_task()
     if senderChannel == 4 and message ~= nil then
         attitude.chassis_imu_yaw_spd = message
         print(message)
-    else 
-        attitude.chassis_imu_yaw_spd  = 0;
     end
 end
 
