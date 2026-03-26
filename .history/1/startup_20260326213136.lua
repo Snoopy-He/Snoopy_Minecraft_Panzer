@@ -4,7 +4,7 @@ local modem = peripheral.find("modem")
 local remote = peripheral.find("tweaked_controller")
 --local SCR=peripheral.find("monitor")
 
-local ang_step = 3.0 --每个周期遥控器控制云台的角度增量
+local ang_step = 3 --每个周期遥控器控制云台的角度增量
 local pi = 3.1415926
 
 function rad_to_deg(rad)
@@ -173,16 +173,10 @@ function gimbal_remote_get()
 
     if keyboard.button.left then
         gimbal.yaw_ang = gimbal.yaw_ang + deg_to_rad(ang_step)
-        if gimbal.yaw_ang > pi then
-            gimbal.yaw_ang = -pi
-        end
     end
 
     if keyboard.button.right then
         gimbal.yaw_ang = gimbal.yaw_ang - deg_to_rad(ang_step)
-        if gimbal.yaw_ang < -pi then
-            gimbal.yaw_ang = pi
-        end
     end
 
     if keyboard.button.up then

@@ -180,8 +180,8 @@ function gimbal_remote_get()
 
     if keyboard.button.right then
         gimbal.yaw_ang = gimbal.yaw_ang - deg_to_rad(ang_step)
-        if gimbal.yaw_ang < -pi then
-            gimbal.yaw_ang = pi
+        if gimbal.yaw_ang < pi then
+            gimbal.yaw_ang = -pi
         end
     end
 

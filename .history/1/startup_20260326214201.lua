@@ -212,6 +212,7 @@ end
 
 function message_send_task()
     print(gimbal.yaw_ang)
+    if 
     modem.transmit(1, 1, tostring(chassis.left_tar_spd.." "..chassis.right_tar_spd))
     modem.transmit(4, 4, tostring(gimbal.mode.." "..gimbal.yaw_ang.." "..gimbal.pitch_ang.." "..gimbal.fire_permit.." "..gimbal.chassis_yaw_spd))
     os.sleep(0.05)
