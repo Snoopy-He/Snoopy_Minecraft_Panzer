@@ -460,7 +460,7 @@ end
 
 function gimbal_control_task()
     target.ang.yaw = math.rad(70)
-    target.ang.pitch = math.rad(0)
+    target.ang.pitch = math.rad(5)
     pitch_control()
     yaw_control()
 end
