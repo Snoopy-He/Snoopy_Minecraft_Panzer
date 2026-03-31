@@ -504,6 +504,7 @@ function message_receive_task()
         gimbal.yaw_motor.tar_ang = math.nil_to_last(tonumber(msg.yaw_ang), gimbal.yaw_motor.tar_last_ang)
         gimbal.pitch_motor.tar_ang = math.nil_to_last(tonumber(msg.pitch_ang), gimbal.pitch_motor.tar_last_ang)
         gimbal.fire_permit = math.nil_to_zero(tonumber(msg.fire_permit))
+        gimbal.mode = math.nil_to_zero(tonumber(msg.mode))
         print(message)
     else 
         attitude.chassis_imu_yaw_spd  = 0;

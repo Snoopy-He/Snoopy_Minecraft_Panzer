@@ -15,6 +15,14 @@ function deg_to_rad(deg)
     return deg * math.pi / 180
 end
 
+local button_state = {}
+
+function button_state:new()
+    local obj = {state = "false",last_state = "false",flag = false,last_flag = false}
+    setmetatable(obj, button_state)
+    return obj
+end
+
 local chassis = {
     max_tar_spd = 200,
     max_tar_turn_spd = 50,
@@ -36,20 +44,20 @@ local gimbal = {
 
 local keyboard = {
     button ={
-        left_mouse = false,
-        right_mouse = false,
-        shift = false,
-        space = false,
-        up = false,
-        down = false,
-        left = false,
-        right = false,
-        w = false,
-        a = false,
-        s = false,
-        d = false,
-        u = false,
-        i = false,
+        left_mouse = button_state:new(),
+        right_mouse = button_state:new(),
+        shift = button_state:new(),
+        space = button_state:new(),
+        up = button_state:new(),
+        down = button_state:new(),
+        left = button_state:new(),
+        right = button_state:new(),
+        w = button_state:new(),
+        a = button_state:new(),
+        s = button_state:new(),
+        d = button_state:new(),
+        u = button_state:new(),
+        i = button_state:new(),
     },
     axis = {
         ws = 0,
@@ -85,54 +93,86 @@ function init()
     print("main control computer init success")
 end
 
+function button_update(state)
+    if state.flag then
+        state.state = "hold"
+    elseif state.last_state == "true" and state.last_flag == true then
+        state.state = "false"
+        state.last_state = "false"
+    elseif state.last_state == "false" and state.last_flag == true then
+        state.state = "true"
+        state.last_state = "true"
+    end
+    state.last_flag = state.flag
+end
+
+function remote_state_update()
+    button_update(keyboard.button.left_mouse)
+    button_update(keyboard.button.right_mouse)
+    button_update(keyboard.button.shift)
+    button_update(keyboard.button.space)
+    button_update(keyboard.button.up)
+    button_update(keyboard.button.down)
+    button_update(keyboard.button.left)
+    button_update(keyboard.button.right)
+    button_update(keyboard.button.w)
+    button_update(keyboard.button.a)
+    button_update(keyboard.button.s)
+    button_update(keyboard.button.d)
+    button_update(keyboard.button.u)
+    button_update(keyboard.button.i)
+end
+
 function remote_receive_task()
-    keyboard.button.left_mouse = remote.getButton(10)
-    keyboard.button.right_mouse = remote.getButton(11)
-    keyboard.button.shift = remote.getButton(7)
-    keyboard.button.space = remote.getButton(9)
-    keyboard.button.up = remote.getButton(12)
-    keyboard.button.down = remote.getButton(14)
-    keyboard.button.left = remote.getButton(15)
-    keyboard.button.right = remote.getButton(13)
-    keyboard.button.u = remote.getButton(5)
-    keyboard.button.i = remote.getButton(6)
+    keyboard.button.left_mouse.flag = remote.getButton(10)
+    keyboard.button.right_mouse.flag = remote.getButton(11)
+    keyboard.button.shift.flag = remote.getButton(7)
+    keyboard.button.space.flag = remote.getButton(9)
+    keyboard.button.up.flag = remote.getButton(12)
+    keyboard.button.down.flag = remote.getButton(14)
+    keyboard.button.left.flag = remote.getButton(15)
+    keyboard.button.right.flag = remote.getButton(13)
+    keyboard.button.u.flag = remote.getButton(5)
+    keyboard.button.i.flag = remote.getButton(6)
     keyboard.axis.ws = remote.getAxis(2)
     keyboard.axis.ad = remote.getAxis(1)
     if keyboard.axis.ws < 0 then
-        keyboard.button.w = true
-        keyboard.button.s = false
+        keyboard.button.w.flag = true
+        keyboard.button.s.flag = false
     elseif keyboard.axis.ws > 0 then
-        keyboard.button.w = false
-        keyboard.button.s = true
+        keyboard.button.w.flag = false
+        keyboard.button.s.flag = true
     else
-        keyboard.button.w = false
-        keyboard.button.s = false
+        keyboard.button.w.flag = false
+        keyboard.button.s.flag = false
     end
 
     if keyboard.axis.ad < 0 then
-        keyboard.button.a = true
-        keyboard.button.d = false
+        keyboard.button.a.flag = true
+        keyboard.button.d.flag = false
     elseif keyboard.axis.ad > 0 then
-        keyboard.button.a = false
-        keyboard.button.d = true
+        keyboard.button.a.flag = false
+        keyboard.button.d.flag = true
     else
-        keyboard.button.a = false
-        keyboard.button.d = false
+        keyboard.button.a.flag = false
+        keyboard.button.d.flag = false
     end
+
+    remote_state_update()
 end
 
 function chassis_remote_get()
-    if keyboard.button.w then
+    if keyboard.button.w.state == "hold" then
         chassis.speed = "forward"
-    elseif keyboard.button.s then
+    elseif keyboard.button.s.state == "hold" then
         chassis.speed = "backward"
     else
         chassis.speed = "stop"
     end
 
-    if keyboard.button.a then
+    if keyboard.button.a.state == "hold" then
         chassis.turn = "left"
-    elseif keyboard.button.d then
+    elseif keyboard.button.d.state == "hold" then
         chassis.turn = "right"
     else        
         chassis.turn = "straight"
@@ -163,37 +203,35 @@ function chassis_speed_set()
 end
 
 function gimbal_remote_get()
-    if keyboard.button.u then
-        if gimbal.mode == 0 then
-            gimbal.mode = 1
-        else
-            gimbal.mode = 0
-        end
+    if keyboard.button.u.state == "true" then
+        gimbal.mode = 1
+    elseif keyboard.button.u.state == "false" then
+        gimbal.mode = 0
     end
 
-    if keyboard.button.left then
+    if keyboard.button.left.state == "hold" then
         gimbal.yaw_ang = gimbal.yaw_ang + deg_to_rad(ang_step)
         if gimbal.yaw_ang > pi then
             gimbal.yaw_ang = -pi
         end
     end
 
-    if keyboard.button.right then
+    if keyboard.button.right.state == "hold" then
         gimbal.yaw_ang = gimbal.yaw_ang - deg_to_rad(ang_step)
         if gimbal.yaw_ang < -pi then
             gimbal.yaw_ang = pi
         end
     end
 
-    if keyboard.button.up then
+    if keyboard.button.up.state == "hold" then
         gimbal.pitch_ang = gimbal.pitch_ang + deg_to_rad(ang_step)
     end
 
-    if keyboard.button.down then
+    if keyboard.button.down.state == "hold" then
         gimbal.pitch_ang = gimbal.pitch_ang - deg_to_rad(ang_step)
     end
 
-    if keyboard.button.space then
+    if keyboard.button.space.state == "hold" then
         gimbal.fire_permit = 1
     else
         gimbal.fire_permit = 0
@@ -211,8 +249,9 @@ function gimbal_control_task()
 end
 
 function message_send_task()
+    print(gimbal.mode)
     modem.transmit(1, 1, tostring(chassis.left_tar_spd.." "..chassis.right_tar_spd))
-    modem.transmit(4, 4, tostring(gimbal.mode.." "..string.format("%.3f", gimbal.yaw_ang).." "..string.format("%.3f", gimbal.pitch_ang).." "..gimbal.fire_permit.." "..string.format("%.3f", gimbal.chassis_yaw_spd)))
+    modem.transmit(4, 4, tostring(string.format("%d", gimbal.mode).." "..string.format("%.3f", gimbal.yaw_ang).." "..string.format("%.3f", gimbal.pitch_ang).." "..string.format("%d", gimbal.fire_permit).." "..string.format("%.3f", gimbal.chassis_yaw_spd)))
     os.sleep(0.05)
 end
 
@@ -221,7 +260,7 @@ function message_receive_task()
     replyChannel, message, senderDistance = os.pullEvent("modem_message")
     if senderChannel == 1 and message ~= nil then
         gimbal.chassis_yaw_spd = tonumber(message)
-        print("chassis yaw spd:"..string.format("%.3f", gimbal.chassis_yaw_spd))
+        --print("chassis yaw spd:"..string.format("%.3f", gimbal.chassis_yaw_spd))
     end
 end
 

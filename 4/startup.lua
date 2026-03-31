@@ -33,7 +33,7 @@ function message_receive_task()
     replyChannel, message, senderDistance = os.pullEvent("modem_message")
     if senderChannel == 3 and message ~= nil then
         bat_percent = message
-        print(message)
+        print(bat_percent)
     else 
         bat_percent  = 0;
     end
