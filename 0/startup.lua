@@ -201,7 +201,7 @@ function attitude_calc_task()
     else
         attitude.omega.y = (attitude.angle.yaw-attitude.last_yaw)/time_piece
     end
-    --print(rad_to_deg(attitude.angle.yaw),rad_to_deg(attitude.omega.y))
+    print(rad_to_deg(attitude.angle.yaw),rad_to_deg(attitude.omega.y))
 end
 
 function message_receive_task()

@@ -99,6 +99,13 @@ function math.nil_to_zero(value)
     return value
 end
 
+function math.nil_to_last(value,last_value)
+    if value == nil then
+        return last_value
+    end
+    return value
+end
+
 local attitude= {
     cannon_ang_world = {
         yaw = 0,
@@ -158,6 +165,7 @@ local attitude= {
     imu_acc_vec = {0,0,0},
     turrent_imu_pitch_ang = 0,
     chassis_imu_yaw_spd = 0,
+    chassis_imu_last_yaw_spd = 0,
     last_turrent_imu_pitch = 0,
     turent_imu_pitch_spd = 0,
 }
@@ -165,11 +173,12 @@ local gimbal = {
     yaw_motor = {
         tar_ang = 0,
         cur_ang = 0,
+        tar_last_ang = 0,
         cur_spd = 0,
         tar_spd = 0,
         output_tor = 0,
         pos_pid = {
-            kp = 6.0,
+            kp = 6.5,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -187,6 +196,7 @@ local gimbal = {
     },
     pitch_motor = {
         tar_ang = 0,
+        tar_last_ang = 0,
         cur_ang = 0,
         cur_spd = 0,
         tar_spd = 0,
@@ -194,9 +204,9 @@ local gimbal = {
         ang_max = math.rad(40),
         ang_min = math.rad(-10),
         pos_pid = {
-            kp = 3.0,
+            kp = 5.0,
             ki = 0.0,
-            kd = 0.0,
+            kd = 0.01,
             integral = 0,
             last_error = 0,
             errall_max = 10000,
@@ -211,7 +221,7 @@ local gimbal = {
         },
     },
     m = 1,
-    mode = 0,    --0:normal   1:stabilize
+    mode = 1,    --0:normal   1:stabilize
     fire_permit = 0
 }
 local target = {
@@ -438,6 +448,7 @@ function pitch_control()
     end
 
     gimbal.pitch_motor.tar_spd = pid_calc(gimbal.pitch_motor.tar_ang, gimbal.pitch_motor.cur_ang, gimbal.pitch_motor.pos_pid)
+    gimbal.pitch_motor.tar_spd = math.clamp(gimbal.pitch_motor.tar_spd,-pi/2,pi/2)
     local pid_output = pid_calc(gimbal.pitch_motor.tar_spd,gimbal.pitch_motor.cur_spd, gimbal.pitch_motor.spd_pid)
     local feed_forward = pitch_feed_forward()
     pitch.setOutputTorque(-pid_output-feed_forward)
@@ -466,6 +477,7 @@ function yaw_control()
     gimbal.yaw_motor.tar_spd = math.clamp(gimbal.yaw_motor.tar_spd,-pi,pi)
     local pid_output = pid_calc(gimbal.yaw_motor.tar_spd,gimbal.yaw_motor.cur_spd,gimbal.yaw_motor.spd_pid)
     yaw.setOutputTorque(pid_output)
+    --print(attitude.chassis_imu_yaw_spd)
     --yaw.setOutputTorque(0)
 end
 
@@ -480,12 +492,19 @@ function message_receive_task()
     local event, modemSide, senderChannel, 
     replyChannel, message, senderDistance = os.pullEvent("modem_message")
     if senderChannel == 4 and message ~= nil then
+        gimbal.yaw_motor.tar_last_ang = gimbal.yaw_motor.tar_ang
+        gimbal.pitch_motor.tar_last_ang = gimbal.pitch_motor.tar_ang
+        attitude.chassis_imu_last_yaw_spd = attitude.chassis_imu_yaw_spd
+
         msg.mode,msg.yaw_ang,msg.pitch_ang,msg.fire_permit,msg.chassis_yaw_spd = message:match("(-?%d+) (-?%d+%.?%d*) (-?%d+%.?%d*) (-?%d+) (-?%d+%.?%d*)")
         attitude.chassis_imu_yaw_spd = math.nil_to_zero(tonumber(msg.chassis_yaw_spd))
-        gimbal.yaw_motor.tar_ang = math.nil_to_zero(tonumber(msg.yaw_ang))
-        gimbal.pitch_motor.tar_ang = math.nil_to_zero(tonumber(msg.pitch_ang))
-        gimbal.fire_permit = math.nil_to_zero(tonumber(msg.pitch_ang))
-        print(gimbal.yaw_motor.tar_ang)
+        if math.abs(attitude.chassis_imu_last_yaw_spd-attitude.chassis_imu_yaw_spd) > 1 then
+            attitude.chassis_imu_yaw_spd = attitude.chassis_imu_last_yaw_spd    
+        end
+        gimbal.yaw_motor.tar_ang = math.nil_to_last(tonumber(msg.yaw_ang), gimbal.yaw_motor.tar_last_ang)
+        gimbal.pitch_motor.tar_ang = math.nil_to_last(tonumber(msg.pitch_ang), gimbal.pitch_motor.tar_last_ang)
+        gimbal.fire_permit = math.nil_to_zero(tonumber(msg.fire_permit))
+        print(message)
     else 
         attitude.chassis_imu_yaw_spd  = 0;
     end
