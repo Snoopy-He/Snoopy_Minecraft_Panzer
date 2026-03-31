@@ -2,7 +2,6 @@
 
 local modem = peripheral.find("modem")
 local remote = peripheral.find("tweaked_controller")
---local SCR=peripheral.find("monitor")
 
 local ang_step = 3.0 --每个周期遥控器控制云台的角度增量
 local pi = 3.1415926
@@ -28,18 +27,25 @@ local chassis = {
     max_tar_turn_spd = 50,
     tar_spd = 0,
     tar_turn_spd = 0,
-    left_tar_spd = 0,
-    right_tar_spd = 0,
     speed = "stop",
     turn = "straight",
 }
 
-local gimbal = {
+local chassis_send_msg = {
+    left_tar_spd = 0,
+    right_tar_spd = 0,
+}
+
+local gimbal_send_msg = {
     yaw_ang = 0.0,
     pitch_ang = 0.0,
     mode = 1,    --0: normal mode  1:stabilize mode
     fire_permit = 0,
     chassis_yaw_spd = 0
+}
+
+local chassis_receive_msg = {
+    yaw_spd = 0.0,
 }
 
 local keyboard = {
@@ -65,12 +71,6 @@ local keyboard = {
     },
 }
 
---function print(text)
-    --SCR.clear()
-    --SCR.setCursorPos(1, 1)
-    --SCR.write(text)
---end
-
 function init()
     if remote == nil then
         print("Remote controller not found")
@@ -84,11 +84,11 @@ function init()
         return
     end
 
-    modem.open(1)
+    modem.open(1)   --chassis control topic
     modem.open(4)   --gimbal control topic
 
-    gimbal.yaw_ang = deg_to_rad(-90)
-    gimbal.pitch_ang = deg_to_rad(0)
+    gimbal_send_msg.yaw_ang = deg_to_rad(-90)
+    gimbal_send_msg.pitch_ang = deg_to_rad(0)
     os.sleep(1)
     print("main control computer init success")
 end
@@ -197,44 +197,44 @@ function chassis_speed_set()
         chassis.tar_turn_spd = -chassis.max_tar_turn_spd
     end
 
-    chassis.left_tar_spd = chassis.tar_spd - chassis.tar_turn_spd
-    chassis.right_tar_spd = chassis.tar_spd + chassis.tar_turn_spd
+    chassis_send_msg.left_tar_spd = chassis.tar_spd - chassis.tar_turn_spd
+    chassis_send_msg.right_tar_spd = chassis.tar_spd + chassis.tar_turn_spd
 
 end
 
 function gimbal_remote_get()
     if keyboard.button.u.state == "true" then
-        gimbal.mode = 1
+        gimbal_send_msg.mode = 1
     elseif keyboard.button.u.state == "false" then
-        gimbal.mode = 0
+        gimbal_send_msg.mode = 0
     end
 
     if keyboard.button.left.state == "hold" then
-        gimbal.yaw_ang = gimbal.yaw_ang + deg_to_rad(ang_step)
-        if gimbal.yaw_ang > pi then
-            gimbal.yaw_ang = -pi
+        gimbal_send_msg.yaw_ang = gimbal_send_msg.yaw_ang + deg_to_rad(ang_step)
+        if gimbal_send_msg.yaw_ang > pi then
+            gimbal_send_msg.yaw_ang = -pi
         end
     end
 
     if keyboard.button.right.state == "hold" then
-        gimbal.yaw_ang = gimbal.yaw_ang - deg_to_rad(ang_step)
-        if gimbal.yaw_ang < -pi then
-            gimbal.yaw_ang = pi
+        gimbal_send_msg.yaw_ang = gimbal_send_msg.yaw_ang - deg_to_rad(ang_step)
+        if gimbal_send_msg.yaw_ang < -pi then
+            gimbal_send_msg.yaw_ang = pi
         end
     end
 
     if keyboard.button.up.state == "hold" then
-        gimbal.pitch_ang = gimbal.pitch_ang + deg_to_rad(ang_step)
+        gimbal_send_msg.pitch_ang = gimbal_send_msg.pitch_ang + deg_to_rad(ang_step)
     end
 
     if keyboard.button.down.state == "hold" then
-        gimbal.pitch_ang = gimbal.pitch_ang - deg_to_rad(ang_step)
+        gimbal_send_msg.pitch_ang = gimbal_send_msg.pitch_ang - deg_to_rad(ang_step)
     end
 
     if keyboard.button.space.state == "hold" then
-        gimbal.fire_permit = 1
+        gimbal_send_msg.fire_permit = 1
     else
-        gimbal.fire_permit = 0
+        gimbal_send_msg.fire_permit = 0
     end
 
 end
@@ -249,9 +249,9 @@ function gimbal_control_task()
 end
 
 function message_send_task()
-    print(gimbal.mode)
-    modem.transmit(1, 1, tostring(chassis.left_tar_spd.." "..chassis.right_tar_spd))
-    modem.transmit(4, 4, tostring(string.format("%d", gimbal.mode).." "..string.format("%.3f", gimbal.yaw_ang).." "..string.format("%.3f", gimbal.pitch_ang).." "..string.format("%d", gimbal.fire_permit).." "..string.format("%.3f", gimbal.chassis_yaw_spd)))
+    modem.transmit(1, 1, tostring(chassis_send_msg.left_tar_spd.." "..chassis_send_msg.right_tar_spd))
+    modem.transmit(4, 4, tostring(string.format("%d", gimbal_send_msg.mode).." "..string.format("%.3f", gimbal_send_msg.yaw_ang).." "..string.format("%.3f", gimbal_send_msg.pitch_ang).." "..string.format("%d", gimbal_send_msg.fire_permit).." "..string.format("%.3f", gimbal_send_msg.chassis_yaw_spd)))
+    --print("send")
     os.sleep(0.05)
 end
 
@@ -259,9 +259,11 @@ function message_receive_task()
     local event, modemSide, senderChannel, 
     replyChannel, message, senderDistance = os.pullEvent("modem_message")
     if senderChannel == 1 and message ~= nil then
-        gimbal.chassis_yaw_spd = tonumber(message)
+        chassis_receive_msg.yaw_spd = tonumber(message)
+        gimbal_send_msg.chassis_yaw_spd = chassis_receive_msg.yaw_spd
         --print("chassis yaw spd:"..string.format("%.3f", gimbal.chassis_yaw_spd))
     end
+
 end
 
 init()

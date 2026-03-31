@@ -44,7 +44,7 @@ function message_receive_task()
         end
     else
         status = true
-        if bat_percent > 95 then    --手动打开发电机后电量大于95%自动断电
+        if bat_percent > 96 then    --手动打开发电机后电量大于95%自动断电
             status = false
         end
     end
