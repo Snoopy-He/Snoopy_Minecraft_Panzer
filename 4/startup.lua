@@ -18,6 +18,9 @@ function init()
         end
     end
     modem.open(3)  --electrical message topic
+    modem.open(6)   --online check topic
+    print("generator control computer init success")
+    modem.transmit(6, 6, "generator_ok")
 end
 
 function generator_on()

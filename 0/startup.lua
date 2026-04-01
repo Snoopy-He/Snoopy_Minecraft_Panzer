@@ -116,7 +116,9 @@ function init()
     right_wheel.setTargetSpeed(0)
 
     modem.open(1)   --speed topic
+    modem.open(6)   --online check topic
     print("chassis control computer init success")
+    modem.transmit(6, 6, "chassis_ok")
 end
 
 function rad_to_deg(rad)

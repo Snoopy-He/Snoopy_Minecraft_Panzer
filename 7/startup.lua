@@ -1,4 +1,4 @@
-------------------cannon control computer--------------------
+-----------remote weapon station control computer-------
 
 local pitch = peripheral.find("servo")
 local imu = peripheral.find("spinalyzer")
@@ -13,6 +13,7 @@ local receive_msg = {
     yaw_ang ="",
     pitch_ang = "",
     gimbal_mode = "",
+    control_mode = "",
     fire_permit = "",
     chassis_yaw_spd = "",
 }
@@ -196,6 +197,7 @@ local attitude= {
     last_turrent_imu_pitch = 0,
     turent_imu_pitch_spd = 0,
 }
+
 local gimbal = {
     yaw_motor = {
         tar_ang = 0,
@@ -205,15 +207,15 @@ local gimbal = {
         tar_spd = 0,
         output_tor = 0,
         pos_pid = {
-            kp = 8.0,
+            kp = 5.0,
             ki = 0.0,
-            kd = 8.0,
+            kd = 0.0,
             integral = 0,
             last_error = 0,
             errall_max = 10000,
         },
         spd_pid = {
-            kp = 240000.0,
+            kp = 8000.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -228,10 +230,10 @@ local gimbal = {
         cur_spd = 0,
         tar_spd = 0,
         output_tor = 0,
-        ang_max = math.rad(35),
-        ang_min = math.rad(-5),
+        ang_max = math.rad(70),
+        ang_min = math.rad(-15),
         pos_pid = {
-            kp = 9.0,
+            kp = 5.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -239,7 +241,7 @@ local gimbal = {
             errall_max = 10000,
         },
         spd_pid = {
-            kp = 800.0,
+            kp = 500.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -248,7 +250,8 @@ local gimbal = {
         },
     },
     m = 1,
-    mode = 0,    --0:normal   1:stabilize
+    gimbal_mode = 0,    --0:normal   1:stabilize
+    control_mode = 0,    --0:manual   1:sentry
     last_mode = 0,
     fire_permit = 0
 }
@@ -259,11 +262,11 @@ local cannon = {
     g = 0.05,  --重力
     velocity = 160,
     pos = xyz:new(0,0,0),
-    gimbal_offset = xyz:new(15,0,0),
+    gimbal_offset = xyz:new(4,1,2),
 }
 
 local target = {
-    pos = xyz:new(0,0,200),
+    pos = xyz:new(530,0,50),
     distance_3d = 0,
     distance_2d = 0,
     flying_time = 0,
@@ -294,8 +297,8 @@ function init()
         return
     end
 
-    transmitter.setProtocol(0)
-    modem.open(4)     --gimbal main control topic
+    transmitter.setProtocol(1)
+    modem.open(5)     --rws main control topic
     modem.open(6)   --online check topic
     pitch.setIsAdjustingAngle(false)
     pitch.setPID(0,0,0)
@@ -304,9 +307,8 @@ function init()
     gimbal.pitch_motor.tar_ang = pitch.getAngle()
     gimbal.yaw_motor.tar_ang = yaw.getAngle()
     os.sleep(1)
-
-    print("cannon control computer init success")
-    modem.transmit(6, 6, "cannon_ok")
+    print("rws control computer init success")
+    modem.transmit(6, 6, "rws_ok")
 end
 
 function quat_to_euler(q)
@@ -424,7 +426,6 @@ function attitude_calc_task()
     attitude.imu_accel.x = attitude.imu_acc_vec[1]    --left>0 and right<0
     attitude.imu_accel.y = attitude.imu_acc_vec[2]    --up>0 and down<0
     attitude.imu_accel.z = attitude.imu_acc_vec[3]   --forward>0  and backward<0
-    --print(string.format("%.2f,%.2f,%.2f", attitude.imu_pos.x, attitude.imu_pos.y, attitude.imu_pos.z))
 end
 
 function cannon_pos_calc()
@@ -494,7 +495,7 @@ function track_calc(parameter,can_pos,tar_pos)   --弹道计算
     cannon.distance_3d = math.distance_3d_calc(can_pos.x, can_pos.y, can_pos.z, tar_pos.x, tar_pos.y, tar_pos.z)
     cannon.distance_2d = w
     cannon.flying_time = flying_time_calc(math.min(pitch1, pitch2), w,parameter)
-    print(string.format("yaw: %.2f, pitch1: %.2f, distance_3d: %.2f, distance_2d: %.2f, flying_time: %.2f", gimbal.yaw_motor.tar_ang, rad_to_deg(pitch1), cannon.distance_3d, cannon.distance_2d, cannon.flying_time))
+    --print(string.format("yaw: %.2f, pitch1: %.2f, distance_3d: %.2f, distance_2d: %.2f, flying_time: %.2f", gimbal.yaw_motor.tar_ang, rad_to_deg(pitch1), cannon.distance_3d, cannon.distance_2d, cannon.flying_time))
 end
 
 function flying_time_calc(pitch,distance,parameter)
@@ -538,34 +539,39 @@ end
 
 --位置环pid+炮塔（底盘）pitch角速度pid+加速度前馈
 function pitch_control()
-    if gimbal.mode == 0 then   --normal mode
+    gimbal.pitch_motor.tar_ang = math.rad(0)
+    if gimbal.gimbal_mode == 0 then   --normal mode
         gimbal.pitch_motor.cur_ang = pitch.getAngle()
         gimbal.pitch_motor.cur_spd = pitch.getAngularVelocity()
-    elseif gimbal.mode == 1 then
+    elseif gimbal.gimbal_mode == 1 then
         gimbal.pitch_motor.cur_ang = attitude.cannon_ang_imu.pitch
         gimbal.pitch_motor.cur_spd = pitch.getAngularVelocity()+attitude.turrent_imu_pitch_spd
     end
 
-    print(string.format("cur_ang: %.2f, cur_spd: %.2f", rad_to_deg(gimbal.pitch_motor.cur_ang), rad_to_deg(gimbal.pitch_motor.cur_spd)))
+    --print(string.format("cur_ang: %.2f, cur_spd: %.2f", rad_to_deg(gimbal.pitch_motor.cur_ang), rad_to_deg(gimbal.pitch_motor.cur_spd)))
 
     gimbal.pitch_motor.tar_ang = math.clamp(gimbal.pitch_motor.tar_ang, gimbal.pitch_motor.ang_min, gimbal.pitch_motor.ang_max)
 
     -- 选择劣弧（最短）路径
 
-    gimbal.pitch_motor.tar_spd = pid_calc(gimbal.pitch_motor.tar_ang, gimbal.pitch_motor.cur_ang, gimbal.pitch_motor.pos_pid)
-    gimbal.pitch_motor.tar_spd = math.clamp(gimbal.pitch_motor.tar_spd,-pi/2,pi/2)
-    local pid_output = pid_calc(gimbal.pitch_motor.tar_spd,gimbal.pitch_motor.cur_spd, gimbal.pitch_motor.spd_pid)
+    gimbal.pitch_motor.tar_spd = pid_calc(gimbal.pitch_motor.tar_ang, -gimbal.pitch_motor.cur_ang, gimbal.pitch_motor.pos_pid)
+    gimbal.pitch_motor.tar_spd = math.clamp(gimbal.pitch_motor.tar_spd,-pi,pi)
+    local pid_output = pid_calc(-gimbal.pitch_motor.tar_spd,gimbal.pitch_motor.cur_spd, gimbal.pitch_motor.spd_pid)
     local feed_forward = pitch_feed_forward()
+    --pid_output = 0
+    --feed_forward = 0
+    --print(string.format("tar_ang:%.2f,cur_ang:%.2f", rad_to_deg(gimbal.pitch_motor.tar_ang), rad_to_deg(gimbal.pitch_motor.cur_ang)))
     pitch.setOutputTorque(-pid_output-feed_forward)
 end
 
 --位置环pid+底盘yaw角速度前馈
 function yaw_control()
-    if gimbal.mode == 0 then   --normal mode
+    gimbal.yaw_motor.tar_ang = 0
+    if gimbal.gimbal_mode == 0 then   --normal mode
         gimbal.yaw_motor.cur_ang = -yaw.getAngle()
         --gimbal.yaw_motor.tar_ang = -target.ang.yaw
         gimbal.yaw_motor.cur_spd = -yaw.getAngularVelocity()
-    elseif gimbal.mode == 1 then
+    elseif gimbal.gimbal_mode == 1 then
         gimbal.yaw_motor.cur_ang = attitude.cannon_ang_imu.yaw
         --gimbal.yaw_motor.tar_ang = target.ang.yaw
         gimbal.yaw_motor.cur_spd = -yaw.getAngularVelocity()-attitude.chassis_imu_yaw_spd*0.5
@@ -580,15 +586,17 @@ function yaw_control()
     gimbal.yaw_motor.tar_spd = pid_calc(gimbal.yaw_motor.tar_ang, gimbal.yaw_motor.cur_ang, gimbal.yaw_motor.pos_pid)
     gimbal.yaw_motor.tar_spd = math.clamp(gimbal.yaw_motor.tar_spd,-pi,pi)
     local pid_output = pid_calc(gimbal.yaw_motor.tar_spd,gimbal.yaw_motor.cur_spd,gimbal.yaw_motor.spd_pid)
+    --print(string.format("tar_ang:%.2f,cur_ang:%.2f,tar_spd:%.2f,cur_spd:%.2f,pid_output:%.2f", rad_to_deg(gimbal.yaw_motor.tar_ang), rad_to_deg(gimbal.yaw_motor.cur_ang), rad_to_deg(gimbal.yaw_motor.tar_spd), rad_to_deg(gimbal.yaw_motor.cur_spd), pid_output))
+    --pid_output = 0
     yaw.setOutputTorque(pid_output)
 end
 
 function fire()
-    redstone.setOutput("front", true)
+    redstone.setOutput("back", true)
 end
 
 function sease_fire()
-    redstone.setOutput("front", false)
+    redstone.setOutput("back", false)
 end
 
 function cannon_control_task()
@@ -617,7 +625,7 @@ function message_receive_task()
         gimbal.pitch_motor.tar_last_ang = gimbal.pitch_motor.tar_ang
         attitude.chassis_imu_last_yaw_spd = attitude.chassis_imu_yaw_spd
 
-        receive_msg.gimbal_mode,receive_msg.yaw_ang,receive_msg.pitch_ang,receive_msg.fire_permit,receive_msg.chassis_yaw_spd = message:match("(-?%d+) (-?%d+%.?%d*) (-?%d+%.?%d*) (-?%d+) (-?%d+%.?%d*)")
+        receive_msg.gimbal_mode, receive_msg.control_mode, receive_msg.fire_permit, receive_msg.chassis_yaw_spd, receive_msg.yaw_ang, receive_msg.pitch_ang = string.match(message, "(%d),(%d),(%d),([%d%.%-]+),([%d%.%-]+),([%d%.%-]+)")
         attitude.chassis_imu_yaw_spd = math.nil_to_zero(tonumber(receive_msg.chassis_yaw_spd))
         if math.abs(attitude.chassis_imu_last_yaw_spd-attitude.chassis_imu_yaw_spd) > 1 then
             attitude.chassis_imu_yaw_spd = attitude.chassis_imu_last_yaw_spd    
@@ -625,7 +633,8 @@ function message_receive_task()
         gimbal.yaw_motor.tar_ang = math.nil_to_last(tonumber(receive_msg.yaw_ang), gimbal.yaw_motor.tar_last_ang)
         gimbal.pitch_motor.tar_ang = math.nil_to_last(tonumber(receive_msg.pitch_ang), gimbal.pitch_motor.tar_last_ang)
         gimbal.fire_permit = math.nil_to_zero(tonumber(receive_msg.fire_permit))
-        gimbal.mode = math.nil_to_zero(tonumber(receive_msg.gimbal_mode))
+        gimbal.gimbal_mode = math.nil_to_zero(tonumber(receive_msg.gimbal_mode))
+        gimbal.control_mode = math.nil_to_zero(tonumber(receive_msg.control_mode))
     
         --print(message)
     else 
@@ -633,8 +642,14 @@ function message_receive_task()
     end
 end
 
+function print_debug_task()
+    print(string.format("%.2f,%.2f,%.2f", cannon.pos.x, cannon.pos.y, cannon.pos.z))
+    --print(string.format("%.2f,%.2f,%.2f", attitude.imu_pos.x, attitude.imu_pos.y, attitude.imu_pos.z))
+    --print(string.format(" %.2f,%.2f,%.2f,%.2f", gimbal.yaw_motor.tar_ang, gimbal.pitch_motor.tar_ang,pitch.getAngle(), yaw.getAngle()))
+end
+
 init()
 while true do
-    parallel.waitForAll(attitude_calc_task,gimbal_control_task,cannon_control_task,message_receive_task)
+    parallel.waitForAll(attitude_calc_task,gimbal_control_task,cannon_control_task,message_receive_task,print_debug_task)
     os.sleep(time_piece)
 end

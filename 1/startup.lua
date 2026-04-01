@@ -14,6 +14,16 @@ function deg_to_rad(deg)
     return deg * math.pi / 180
 end
 
+function math.clamp(value, min, max)
+    if value < min then
+        return min
+    elseif value > max then
+        return max
+    else
+        return value
+    end
+end
+
 local button_state = {}
 
 function button_state:new()
@@ -27,8 +37,14 @@ local chassis = {
     max_tar_turn_spd = 50,
     tar_spd = 0,
     tar_turn_spd = 0,
+    accel_rate = 8,
     speed = "stop",
     turn = "straight",
+}
+
+local gimbal = {
+    pitch_ang_max = math.rad(35),
+    pitch_ang_min = math.rad(-5),
 }
 
 local chassis_send_msg = {
@@ -39,7 +55,16 @@ local chassis_send_msg = {
 local gimbal_send_msg = {
     yaw_ang = 0.0,
     pitch_ang = 0.0,
-    mode = 1,    --0: normal mode  1:stabilize mode
+    mode = 0,    --0: normal mode  1:stabilize mode
+    fire_permit = 0,
+    chassis_yaw_spd = 0
+}
+
+local rws_send_msg = {   --rws:remote weapon station
+    yaw_ang = 0.0,
+    pitch_ang = 0.0,
+    gimbal_mode = 0,    --0: normal mode  1:stabilize mode
+    control_mode = 0,    --0:manual  1:sentry
     fire_permit = 0,
     chassis_yaw_spd = 0
 }
@@ -86,11 +111,14 @@ function init()
 
     modem.open(1)   --chassis control topic
     modem.open(4)   --gimbal control topic
+    modem.open(5)   --rws main control topic
+    modem.open(6)   --online check topic
 
     gimbal_send_msg.yaw_ang = deg_to_rad(-90)
     gimbal_send_msg.pitch_ang = deg_to_rad(0)
     os.sleep(1)
     print("main control computer init success")
+    modem.transmit(6, 6, "main_ok")
 end
 
 function button_update(state)
@@ -237,6 +265,7 @@ function gimbal_remote_get()
         gimbal_send_msg.fire_permit = 0
     end
 
+    gimbal_send_msg.pitch_ang = math.clamp(gimbal_send_msg.pitch_ang, gimbal.pitch_ang_min, gimbal.pitch_ang_max)
 end
 
 function chassis_control_task()
@@ -251,7 +280,7 @@ end
 function message_send_task()
     modem.transmit(1, 1, tostring(chassis_send_msg.left_tar_spd.." "..chassis_send_msg.right_tar_spd))
     modem.transmit(4, 4, tostring(string.format("%d", gimbal_send_msg.mode).." "..string.format("%.3f", gimbal_send_msg.yaw_ang).." "..string.format("%.3f", gimbal_send_msg.pitch_ang).." "..string.format("%d", gimbal_send_msg.fire_permit).." "..string.format("%.3f", gimbal_send_msg.chassis_yaw_spd)))
-    --print("send")
+    modem.transmit(5, 5, tostring(string.format("%d", rws_send_msg.gimbal_mode).." "..string.format("%d", rws_send_msg.control_mode).." "..string.format("%d", rws_send_msg.fire_permit).." "..string.format("%.3f", rws_send_msg.yaw_ang).." "..string.format("%.3f", rws_send_msg.pitch_ang).." "..string.format("%.3f", rws_send_msg.chassis_yaw_spd)))
     os.sleep(0.05)
 end
 

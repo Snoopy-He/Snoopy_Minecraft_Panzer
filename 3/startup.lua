@@ -23,7 +23,9 @@ function init()
     end
 
     modem.open(3)  --electrical message topic
+    modem.open(6)   --online check topic
     print("electricalcontrol computerinit success")
+    modem.transmit(6, 6, "electricity_ok")
 end
 
 function energy_read()
