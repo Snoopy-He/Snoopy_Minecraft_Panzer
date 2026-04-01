@@ -207,7 +207,7 @@ local gimbal = {
         tar_spd = 0,
         output_tor = 0,
         pos_pid = {
-            kp = 5.0,
+            kp = 2.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -215,7 +215,7 @@ local gimbal = {
             errall_max = 10000,
         },
         spd_pid = {
-            kp = 8000.0,
+            kp = 200000.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -241,7 +241,7 @@ local gimbal = {
             errall_max = 10000,
         },
         spd_pid = {
-            kp = 500.0,
+            kp = 100000.0,
             ki = 0.0,
             kd = 0.0,
             integral = 0,
@@ -262,7 +262,7 @@ local cannon = {
     g = 0.05,  --重力
     velocity = 160,
     pos = xyz:new(0,0,0),
-    gimbal_offset = xyz:new(4,1,2),
+    gimbal_offset = xyz:new(2,-4.5,1),
 }
 
 local target = {
@@ -539,10 +539,10 @@ end
 
 --位置环pid+炮塔（底盘）pitch角速度pid+加速度前馈
 function pitch_control()
-    gimbal.pitch_motor.tar_ang = math.rad(0)
+    gimbal.pitch_motor.tar_ang = math.rad(40)
     if gimbal.gimbal_mode == 0 then   --normal mode
         gimbal.pitch_motor.cur_ang = pitch.getAngle()
-        gimbal.pitch_motor.cur_spd = pitch.getAngularVelocity()
+        gimbal.pitch_motor.cur_spd = -pitch.getAngularVelocity()
     elseif gimbal.gimbal_mode == 1 then
         gimbal.pitch_motor.cur_ang = attitude.cannon_ang_imu.pitch
         gimbal.pitch_motor.cur_spd = pitch.getAngularVelocity()+attitude.turrent_imu_pitch_spd
@@ -556,17 +556,16 @@ function pitch_control()
 
     gimbal.pitch_motor.tar_spd = pid_calc(gimbal.pitch_motor.tar_ang, -gimbal.pitch_motor.cur_ang, gimbal.pitch_motor.pos_pid)
     gimbal.pitch_motor.tar_spd = math.clamp(gimbal.pitch_motor.tar_spd,-pi,pi)
-    local pid_output = pid_calc(-gimbal.pitch_motor.tar_spd,gimbal.pitch_motor.cur_spd, gimbal.pitch_motor.spd_pid)
+    local pid_output = pid_calc(gimbal.pitch_motor.tar_spd,gimbal.pitch_motor.cur_spd, gimbal.pitch_motor.spd_pid)
     local feed_forward = pitch_feed_forward()
-    --pid_output = 0
-    --feed_forward = 0
-    --print(string.format("tar_ang:%.2f,cur_ang:%.2f", rad_to_deg(gimbal.pitch_motor.tar_ang), rad_to_deg(gimbal.pitch_motor.cur_ang)))
-    pitch.setOutputTorque(-pid_output-feed_forward)
+
+    print(pid_output-feed_forward)
+    pitch.setOutputTorque(pid_output-feed_forward)
 end
 
 --位置环pid+底盘yaw角速度前馈
 function yaw_control()
-    gimbal.yaw_motor.tar_ang = 0
+    gimbal.yaw_motor.tar_ang = math.rad(90)
     if gimbal.gimbal_mode == 0 then   --normal mode
         gimbal.yaw_motor.cur_ang = -yaw.getAngle()
         --gimbal.yaw_motor.tar_ang = -target.ang.yaw
@@ -643,7 +642,7 @@ function message_receive_task()
 end
 
 function print_debug_task()
-    print(string.format("%.2f,%.2f,%.2f", cannon.pos.x, cannon.pos.y, cannon.pos.z))
+    --print(string.format("%.2f,%.2f,%.2f", cannon.pos.x, cannon.pos.y, cannon.pos.z))
     --print(string.format("%.2f,%.2f,%.2f", attitude.imu_pos.x, attitude.imu_pos.y, attitude.imu_pos.z))
     --print(string.format(" %.2f,%.2f,%.2f,%.2f", gimbal.yaw_motor.tar_ang, gimbal.pitch_motor.tar_ang,pitch.getAngle(), yaw.getAngle()))
 end
